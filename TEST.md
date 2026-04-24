@@ -1,0 +1,1 @@
+python scripts/bvh_to_robot.py --bvh_file data/lafan1/dance1_subject1.bvh --robot unitree_g1 --save_path data/lafan1/dance1_subject1.pkl --format lafan1
