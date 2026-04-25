@@ -5,6 +5,7 @@ import general_motion_retargeting.utils.lafan_vendor.utils as utils
 
 
 FORSENSE_TO_GMR_ALIASES = {
+    # Original ForSense lowercase naming (e.g. 20260326_134344.bvh)
     "hip": "Hips",
     "chest": "Chest4",
     "head": "Head",
@@ -22,6 +23,18 @@ FORSENSE_TO_GMR_ALIASES = {
     "right_upper_leg": "RightHip",
     "right_lower_leg": "RightKnee",
     "right_foot": "RightFoot",
+    # Mixamo-compatible naming used by some ForSense exports (e.g. G1-test.bvh)
+    # Root "Hips" and "LeftShoulder"/"RightShoulder"/"Head"/"LeftFoot"/"RightFoot"
+    # are already the correct GMR names so no alias is needed for them.
+    "Spine2": "Chest4",
+    "LeftUpLeg": "LeftHip",
+    "LeftLeg": "LeftKnee",
+    "RightUpLeg": "RightHip",
+    "RightLeg": "RightKnee",
+    "LeftArm": "LeftElbow",
+    "LeftForeArm": "LeftWrist",
+    "RightArm": "RightElbow",
+    "RightForeArm": "RightWrist",
 }
 
 
