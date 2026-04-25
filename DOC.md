@@ -173,7 +173,7 @@ The two-pass strategy lets the solver first roughly place the skeleton (table1) 
 
 ---
 
-## Real-Time Streaming: `scripts/lafan_live_to_ros.py`
+## Real-Time Streaming: `scripts/bvh_stream_to_ros.py`
 
 Loads a ForSense BVH, retargets each frame to the robot, and publishes three ROS topics at the recorded frame rate:
 
@@ -185,7 +185,7 @@ Loads a ForSense BVH, retargets each frame to the robot, and publishes three ROS
 
 **Usage:**
 ```bash
-python scripts/lafan_live_to_ros.py \
+python scripts/bvh_stream_to_ros.py \
   --bvh_file data/20260326_134344.bvh \
   --format forsense \
   --robot unitree_g1 \

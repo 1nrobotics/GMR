@@ -242,7 +242,7 @@ def main() -> int:
         default="auto",
         help="Auto-detect ROS 1 vs ROS 2 unless a specific version is required.",
     )
-    parser.add_argument("--node-name", default="lafan_live_to_ros")
+    parser.add_argument("--node-name", default="bvh_stream_to_ros")
     parser.add_argument("--joint-topic", default="/gmr/joint_states")
     parser.add_argument("--base-pose-topic", default="/gmr/base_pose")
     parser.add_argument("--qpos-topic", default="/gmr/qpos")
@@ -269,7 +269,7 @@ def main() -> int:
     parser.add_argument("--follow-camera", dest="follow_camera", action="store_true", default=True)
     parser.add_argument("--no-follow-camera", dest="follow_camera", action="store_false")
     parser.add_argument("--record_video", action="store_true", default=False)
-    parser.add_argument("--video_path", type=str, default="videos/lafan_live_to_ros.mp4")
+    parser.add_argument("--video_path", type=str, default="videos/bvh_stream_to_ros.mp4")
     parser.add_argument("--solver", type=str, default="daqp")
     parser.add_argument("--damping", type=float, default=0.5)
     parser.add_argument("--use-velocity-limit", action="store_true", default=False)

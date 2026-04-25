@@ -14,9 +14,9 @@ python scripts/bvh_to_robot.py \
 
 Add `--rate_limit` if you want playback to run in real time.
 
-## Complete ROS Setup For `lafan_live_to_ros.py`
+## Complete ROS Setup For `bvh_stream_to_ros.py`
 
-`scripts/lafan_live_to_ros.py` needs a working ROS Python environment before it can publish topics.
+`scripts/bvh_stream_to_ros.py` needs a working ROS Python environment before it can publish topics.
 
 ### ROS Noetic With Conda
 
@@ -90,12 +90,12 @@ print("ROS 2 Python setup OK")
 PY
 ```
 
-## Run `lafan_live_to_ros.py`
+## Run `bvh_stream_to_ros.py`
 
 After ROS is set up, run:
 
 ```bash
-python scripts/lafan_live_to_ros.py \
+python scripts/bvh_stream_to_ros.py \
   --bvh_file data/dance1_subject1.bvh \
   --format lafan1 \
   --robot unitree_g1 \
@@ -111,7 +111,7 @@ For debugging, keep `--visualize` enabled so you can see the retargeted robot mo
 Debug command:
 
 ```bash
-python scripts/lafan_live_to_ros.py \
+python scripts/bvh_stream_to_ros.py \
   --bvh_file data/dance1_subject1.bvh \
   --format lafan1 \
   --robot unitree_g1 \
@@ -136,5 +136,5 @@ This publishes:
 ## Difference From `bvh_to_robot.py`
 
 - `bvh_to_robot.py` is mainly for offline retargeting, MuJoCo visualization, and optional `.pkl` export.
-- `lafan_live_to_ros.py` is mainly for real-time retargeting and ROS topic publishing.
-- `lafan_live_to_ros.py` can also visualize, but ROS output is its main job.
+- `bvh_stream_to_ros.py` is mainly for real-time retargeting and ROS topic publishing.
+- `bvh_stream_to_ros.py` can also visualize, but ROS output is its main job.
