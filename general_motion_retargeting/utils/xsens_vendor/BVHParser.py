@@ -324,8 +324,7 @@ class BVHParser:
                     # 转换为 MuJoCo 坐标系: BVH [X, Y, Z] -> MuJoCo [Z, X, Y]
                     mujoco_pos = [bvh_pos[i] * self.scale for i in self.axis_idx]
                     mujoco_rot = [bvh_rot[i] for i in self.axis_idx]
-                    if node.name == "Hips":
-                        self.positions[fi, node_idx] = mujoco_pos
+                    self.positions[fi, node_idx] = mujoco_pos
                     self.rotations[fi, node_idx] = mujoco_rot
 
                 elif num_channels == 3:

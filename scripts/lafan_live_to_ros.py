@@ -20,7 +20,8 @@ from rich import print
 
 from general_motion_retargeting import GeneralMotionRetargeting as GMR
 from general_motion_retargeting import RobotMotionViewer
-from general_motion_retargeting.utils.lafan1 import load_bvh_file
+from general_motion_retargeting.utils.forsense import load_bvh_file as load_forsense_bvh_file
+from general_motion_retargeting.utils.lafan1 import load_bvh_file as load_lafan_bvh_file
 
 
 g_running = True
@@ -78,6 +79,16 @@ def build_joint_names(model) -> list[str]:
                 joint_names.append(f"{joint_name}_{idx}")
 
     return joint_names
+
+
+def load_motion_frames(bvh_path: pathlib.Path, motion_format: str):
+    if motion_format in {"lafan1", "nokov"}:
+        frames, actual_human_height = load_lafan_bvh_file(str(bvh_path), format=motion_format)
+        return frames, actual_human_height
+    if motion_format == "forsense":
+        frames, actual_human_height, _frame_time = load_forsense_bvh_file(str(bvh_path), format=motion_format)
+        return frames, actual_human_height
+    raise ValueError(f"Unsupported motion format: {motion_format}")
 
 
 class RosBridge:
@@ -212,7 +223,7 @@ def main() -> int:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--bvh_file", required=True, type=str, help="BVH motion file to stream.")
-    parser.add_argument("--format", choices=["lafan1", "nokov"], default="lafan1")
+    parser.add_argument("--format", choices=["lafan1", "nokov", "forsense"], default="lafan1")
     parser.add_argument(
         "--robot",
         choices=[
@@ -265,6 +276,16 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # Validate that the chosen format+robot combination has an IK config
+    from general_motion_retargeting.params import IK_CONFIG_DICT
+    src_human_key = "bvh_forsense" if args.format == "forsense" else f"bvh_{args.format}"
+    if src_human_key not in IK_CONFIG_DICT or args.robot not in IK_CONFIG_DICT[src_human_key]:
+        valid = list(IK_CONFIG_DICT.get(src_human_key, {}).keys())
+        parser.error(
+            f"No IK config for --format {args.format!r} + --robot {args.robot!r}. "
+            f"Valid robots for this format: {valid or 'none'}"
+        )
+
     bvh_path = resolve_input_path(args.bvh_file)
     if not bvh_path.exists():
         raise FileNotFoundError(f"BVH file not found: {bvh_path}")
@@ -274,13 +295,13 @@ def main() -> int:
     frame_period = 1.0 / motion_fps
 
     print(f"Loading BVH: {bvh_path}")
-    human_frames, actual_human_height = load_bvh_file(str(bvh_path), format=args.format)
+    human_frames, actual_human_height = load_motion_frames(bvh_path, args.format)
     if args.human_height is not None:
         actual_human_height = args.human_height
 
     print("Initializing retargeter...")
     retargeter = GMR(
-        src_human=f"bvh_{args.format}",
+        src_human="bvh_forsense" if args.format == "forsense" else f"bvh_{args.format}",
         tgt_robot=args.robot,
         actual_human_height=actual_human_height,
         solver=args.solver,
