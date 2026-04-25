@@ -4,8 +4,11 @@ from general_motion_retargeting.utils.xsens_vendor.BVHParser import Anim, BVHPar
 import general_motion_retargeting.utils.lafan_vendor.utils as utils
 
 
-FORSENSE_TO_GMR_ALIASES = {
-    # Original ForSense lowercase naming (e.g. 20260326_134344.bvh)
+# ── Variant A: original ForSense lower_snake_case export ─────────────────────
+# Root joint is named "hip".  Example file: 20260326_134344.bvh
+# Skeleton: hip → chest → (head, left_shoulder, right_shoulder,
+#                           left_upper_leg, right_upper_leg)
+FORSENSE_SNAKE_ALIASES = {
     "hip": "Hips",
     "chest": "Chest4",
     "head": "Head",
@@ -23,9 +26,18 @@ FORSENSE_TO_GMR_ALIASES = {
     "right_upper_leg": "RightHip",
     "right_lower_leg": "RightKnee",
     "right_foot": "RightFoot",
-    # Mixamo-compatible naming used by some ForSense exports (e.g. G1-test.bvh)
-    # Root "Hips" and "LeftShoulder"/"RightShoulder"/"Head"/"LeftFoot"/"RightFoot"
-    # are already the correct GMR names so no alias is needed for them.
+}
+
+# ── Variant B: Mixamo-compatible CamelCase export ─────────────────────────────
+# Root joint is named "Hips".  Example file: G1-test.bvh
+# Skeleton: Hips → Spine → Spine1 → Spine2 → (Neck → Neck1 → Head,
+#                                               RightShoulder, LeftShoulder)
+#           Hips → RightUpLeg / LeftUpLeg
+# Notes:
+#   • "Hips", "Head", "LeftShoulder", "RightShoulder",
+#     "LeftFoot", "RightFoot" are already correct GMR names — no alias needed.
+#   • "Spine2" is the topmost trunk joint, equivalent to "chest" / "Chest4".
+FORSENSE_MIXAMO_ALIASES = {
     "Spine2": "Chest4",
     "LeftUpLeg": "LeftHip",
     "LeftLeg": "LeftKnee",
@@ -83,6 +95,20 @@ def load_bvh_file(bvh_file, format="forsense"):
         )
         global_data = (global_data[0][first_active:], global_data[1][first_active:])
 
+    # Select alias table based on naming convention detected from the root joint.
+    root_name = anim.bones[0]
+    if root_name == "hip":
+        # Variant A: original ForSense snake_case export (e.g. 20260326_134344.bvh)
+        aliases = FORSENSE_SNAKE_ALIASES
+    elif root_name == "Hips":
+        # Variant B: Mixamo-compatible CamelCase export (e.g. G1-test.bvh)
+        aliases = FORSENSE_MIXAMO_ALIASES
+    else:
+        raise ValueError(
+            f"Unrecognized ForSense BVH root joint name: {root_name!r}. "
+            "Expected 'hip' (snake_case export) or 'Hips' (Mixamo export)."
+        )
+
     frames = []
     for frame in range(anim.pos.shape[0]):
         result = {}
@@ -91,7 +117,7 @@ def load_bvh_file(bvh_file, format="forsense"):
             position = global_data[1][frame, i]
             result[bone] = (position, orientation)
 
-        for src_name, target_name in FORSENSE_TO_GMR_ALIASES.items():
+        for src_name, target_name in aliases.items():
             if src_name in result:
                 result[target_name] = result[src_name]
 
