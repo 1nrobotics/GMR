@@ -104,6 +104,64 @@ python scripts/bvh_stream_to_ros.py \
   --visualize
 ```
 
+For a ForSense BVH recording on Unitree G1:
+
+```bash
+python scripts/bvh_stream_to_ros.py \
+  --bvh_file data/bvh_record.bvh \
+  --format forsense \
+  --robot unitree_g1 \
+  --ros-version 1 \
+  --loop \
+  --visualize \
+  --follow-camera
+```
+
+Expected result:
+
+- Leg and torso motion should follow the BVH.
+- Arm motion should come from the upper-arm and lower-arm ForSense segments, not the clavicle-like shoulder nodes.
+- ROS publishes `/gmr/joint_states`, `/gmr/base_pose`, and `/gmr/qpos`.
+
+### Arm Clearance Checks
+
+If the hands pass through the torso or legs, first try the lightweight shoulder-roll bias:
+
+```bash
+python scripts/bvh_stream_to_ros.py \
+  --bvh_file data/bvh_record.bvh \
+  --format forsense \
+  --robot unitree_g1 \
+  --ros-version 1 \
+  --loop \
+  --visualize \
+  --follow-camera \
+  --arm-out-bias 0.15
+```
+
+Use `0.10` to `0.20` radians as the usual test range. Positive values move both G1 arms outward.
+
+For constraint-based collision avoidance, run:
+
+```bash
+python scripts/bvh_stream_to_ros.py \
+  --bvh_file data/bvh_record.bvh \
+  --format forsense \
+  --robot unitree_g1 \
+  --ros-version 1 \
+  --loop \
+  --visualize \
+  --follow-camera \
+  --use-collision-avoidance
+```
+
+Expected result:
+
+- Default behavior has collision avoidance disabled.
+- With `--use-collision-avoidance`, the retargeter should include `CollisionAvoidanceLimit`.
+- If avoidance reacts too late, increase `detection_distance` in `general_motion_retargeting/ik_configs/bvh_forsense_to_g1.json`.
+- If hands still get too close, increase `min_distance` in the same config.
+
 ### MuJoCo Debug Visualization
 
 For debugging, keep `--visualize` enabled so you can see the retargeted robot motion live in MuJoCo while the ROS topics are being published.

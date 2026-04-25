@@ -55,5 +55,18 @@
         "right_shoulder_yaw_link": ["RightElbow", 5, 50, [0.0, 0.0, 0.0], [0.707107, -0.707107, 0.0, 0.0]],
         "right_elbow_link": ["RightWrist", 20, 5, [0.0, 0.0, 0.0], [0.500000, -0.500000, 0.500000, -0.500000]],
         "right_wrist_yaw_link": ["RightHand", 50, 5, [0.0, 0.0, 0.0], [0.500000, -0.500000, 0.500000, -0.500000]]
+    },
+    "collision_avoidance": {
+        "enabled": true,
+        "min_distance": 0.04,
+        "detection_distance": 0.12,
+        "self_collision_pairs": [
+            [["left_elbow_link"], ["torso_link"]],
+            [["right_elbow_link"], ["torso_link"]],
+            [["left_wrist_yaw_link"], ["torso_link"]],
+            [["right_wrist_yaw_link"], ["torso_link"]],
+            [["left_wrist_yaw_link"], ["left_hip_pitch_link", "left_hip_roll_link", "left_knee_link"]],
+            [["right_wrist_yaw_link"], ["right_hip_pitch_link", "right_hip_roll_link", "right_knee_link"]]
+        ]
     }
 }

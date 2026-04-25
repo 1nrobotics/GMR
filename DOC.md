@@ -43,7 +43,8 @@ Anim  (local quats + positions)
 quat_fk  (forward kinematics → global positions + orientations)
       │
       ▼
-FORSENSE_TO_GMR_ALIASES  (rename joints to GMR canonical names)
+FORSENSE_SNAKE_ALIASES / FORSENSE_MIXAMO_ALIASES
+      │   (rename joints to GMR canonical names)
       │
       ▼
 load_bvh_file returns  frames: list[dict[str → (pos, quat)]]
@@ -115,7 +116,7 @@ For example, `20260326_134344.bvh` had **516 leading zero-frames** (5.16 s at 10
 
 ## Joint Naming Conventions
 
-ForSense hardware can export BVH files with two different joint naming schemes. Both are handled by `FORSENSE_TO_GMR_ALIASES` in `general_motion_retargeting/utils/forsense.py`.
+ForSense hardware can export BVH files with two different joint naming schemes. Both are handled in `general_motion_retargeting/utils/forsense.py`.
 
 ### Original ForSense naming (lower_snake_case)
 
@@ -153,9 +154,11 @@ Used by some ForSense exports that follow Mixamo conventions (e.g. `G1-test.bvh`
 
 These are the names that appear as keys in each frame dict and must match entries in `bvh_forsense_to_g1.json`:
 
-`Hips`, `Chest4`, `Head`, `LeftShoulder`, `RightShoulder`, `LeftElbow`, `RightElbow`, `LeftWrist`, `RightWrist`, `LeftHip`, `RightHip`, `LeftKnee`, `RightKnee`, `LeftFoot`, `RightFoot`, `LeftFootMod`, `RightFootMod`
+`Hips`, `Chest4`, `Head`, `LeftShoulder`, `RightShoulder`, `LeftElbow`, `RightElbow`, `LeftWrist`, `RightWrist`, `LeftHand`, `RightHand`, `LeftHip`, `RightHip`, `LeftKnee`, `RightKnee`, `LeftFoot`, `RightFoot`, `LeftFootMod`, `RightFootMod`
 
 `LeftFootMod` and `RightFootMod` are synthetic entries copied from `LeftFoot`/`RightFoot` and used to provide foot orientation targets to the IK solver.
+
+**Arm naming note:** in the lower_snake_case ForSense export, `LeftElbow`/`RightElbow` are aliases for the `left_upper_arm`/`right_upper_arm` BVH nodes. The Unitree G1 shoulder IK target intentionally tracks these upper-arm segment frames, not the small clavicle-like `LeftShoulder`/`RightShoulder` frames. The elbow target then tracks `LeftWrist`/`RightWrist`, which come from the lower-arm BVH nodes.
 
 ---
 
@@ -166,8 +169,9 @@ Located at `general_motion_retargeting/ik_configs/bvh_forsense_to_g1.json`.
 - `human_height_assumption`: `1.8` m (used for scale ratio)
 - `human_root_name`: `"Hips"`
 - `robot_root_name`: `"pelvis"` (Unitree G1 base body)
-- `ik_match_table1`: first IK pass — emphasises position for limb roots, high rotation weight for torso/shoulders
-- `ik_match_table2`: second IK pass — emphasises position for hips/knees/feet
+- `ik_match_table1`: first IK pass — emphasises rotation for torso and arm segment orientation
+- `ik_match_table2`: second IK pass — emphasises position for pelvis, legs, feet, elbows, and hands
+- `collision_avoidance`: optional Mink collision-avoidance settings for arms vs torso/legs; disabled by default in the streaming script unless `--use-collision-avoidance` is passed
 
 The two-pass strategy lets the solver first roughly place the skeleton (table1) then refine limb joint angles (table2).
 
@@ -206,4 +210,26 @@ Key flags:
 | `--visualize` | off | Open MuJoCo viewer |
 | `--solver` | `daqp` | IK solver backend |
 | `--damping` | `0.5` | IK solver regularisation |
+| `--use-velocity-limit` | off | Add a velocity limit to the IK solve |
+| `--use-collision-avoidance` | off | Enable optional collision avoidance from the IK config |
+| `--arm-out-bias` | `0.0` | Add an outward G1 shoulder-roll bias in radians after IK |
 
+### Arm Clearance Options
+
+If the retargeted G1 hands pass through the torso or legs, start with the simple shoulder bias:
+
+```bash
+python scripts/bvh_stream_to_ros.py \
+  --bvh_file data/bvh_record.bvh \
+  --format forsense \
+  --robot unitree_g1 \
+  --ros-version 1 \
+  --loop \
+  --visualize \
+  --follow-camera \
+  --arm-out-bias 0.15
+```
+
+`--arm-out-bias` is applied after IK. For G1, positive values add to `left_shoulder_roll_joint` and subtract from `right_shoulder_roll_joint`, pushing both arms slightly away from the body. A practical starting range is `0.10` to `0.20` radians.
+
+For a constraint-based approach, pass `--use-collision-avoidance`. This enables the `collision_avoidance` block in `bvh_forsense_to_g1.json`, currently configured for elbow/wrist vs torso and wrist vs same-side hip/knee links. This is more physically aware than a shoulder bias, but it can make the IK solve stiffer and more expensive.

@@ -81,6 +81,30 @@ def build_joint_names(model) -> list[str]:
     return joint_names
 
 
+def build_joint_qpos_addresses(model) -> dict[str, int]:
+    import mujoco as mj
+
+    joint_qpos_addresses = {}
+    for joint_id in range(model.njnt):
+        joint_name = mj.mj_id2name(model, mj.mjtObj.mjOBJ_JOINT, joint_id)
+        if joint_name:
+            joint_qpos_addresses[joint_name] = int(model.jnt_qposadr[joint_id])
+    return joint_qpos_addresses
+
+
+def apply_arm_out_bias(qpos: np.ndarray, joint_qpos_addresses: dict[str, int], bias: float) -> None:
+    if bias == 0.0:
+        return
+
+    left_addr = joint_qpos_addresses.get("left_shoulder_roll_joint")
+    right_addr = joint_qpos_addresses.get("right_shoulder_roll_joint")
+
+    if left_addr is not None:
+        qpos[left_addr] += bias
+    if right_addr is not None:
+        qpos[right_addr] -= bias
+
+
 def load_motion_frames(bvh_path: pathlib.Path, motion_format: str):
     if motion_format in {"lafan1", "nokov"}:
         frames, actual_human_height = load_lafan_bvh_file(str(bvh_path), format=motion_format)
@@ -273,6 +297,13 @@ def main() -> int:
     parser.add_argument("--solver", type=str, default="daqp")
     parser.add_argument("--damping", type=float, default=0.5)
     parser.add_argument("--use-velocity-limit", action="store_true", default=False)
+    parser.add_argument("--use-collision-avoidance", action="store_true", default=False)
+    parser.add_argument(
+        "--arm-out-bias",
+        type=float,
+        default=0.0,
+        help="Add an outward shoulder-roll bias in radians after IK. For G1, positive values move both arms away from the body.",
+    )
 
     args = parser.parse_args()
 
@@ -307,9 +338,11 @@ def main() -> int:
         solver=args.solver,
         damping=args.damping,
         use_velocity_limit=args.use_velocity_limit,
+        use_collision_avoidance=args.use_collision_avoidance,
     )
 
     joint_names = build_joint_names(retargeter.model)
+    joint_qpos_addresses = build_joint_qpos_addresses(retargeter.model)
     if len(joint_names) != retargeter.model.nq - 7:
         raise ValueError(
             f"Joint name count ({len(joint_names)}) does not match robot DoF count ({retargeter.model.nq - 7})."
@@ -349,6 +382,7 @@ def main() -> int:
         while g_running and ros_bridge.ok():
             human_frame = human_frames[frame_idx]
             qpos = retargeter.retarget(human_frame)
+            apply_arm_out_bias(qpos, joint_qpos_addresses, args.arm_out_bias)
             ros_bridge.publish(qpos)
 
             if viewer is not None:
