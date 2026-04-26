@@ -92,6 +92,25 @@ def build_joint_qpos_addresses(model) -> dict[str, int]:
     return joint_qpos_addresses
 
 
+def build_limited_joint_ranges(model) -> dict[str, tuple[int, float, float]]:
+    import mujoco as mj
+
+    limited_joint_ranges = {}
+    for joint_id in range(model.njnt):
+        if model.jnt_type[joint_id] != mj.mjtJoint.mjJNT_HINGE or not model.jnt_limited[joint_id]:
+            continue
+
+        joint_name = mj.mj_id2name(model, mj.mjtObj.mjOBJ_JOINT, joint_id)
+        if not joint_name:
+            continue
+
+        qpos_addr = int(model.jnt_qposadr[joint_id])
+        lower, upper = model.jnt_range[joint_id]
+        limited_joint_ranges[joint_name] = (qpos_addr, float(lower), float(upper))
+
+    return limited_joint_ranges
+
+
 def apply_arm_out_bias(qpos: np.ndarray, joint_qpos_addresses: dict[str, int], bias: float) -> None:
     if bias == 0.0:
         return
@@ -103,6 +122,21 @@ def apply_arm_out_bias(qpos: np.ndarray, joint_qpos_addresses: dict[str, int], b
         qpos[left_addr] += bias
     if right_addr is not None:
         qpos[right_addr] -= bias
+
+
+def clamp_qpos_to_joint_limits(
+    qpos: np.ndarray,
+    limited_joint_ranges: dict[str, tuple[int, float, float]],
+    tolerance: float = 1e-9,
+) -> list[tuple[str, float, float]]:
+    clipped_joints = []
+    for joint_name, (qpos_addr, lower, upper) in limited_joint_ranges.items():
+        value = float(qpos[qpos_addr])
+        clipped_value = float(np.clip(value, lower, upper))
+        if abs(value - clipped_value) > tolerance:
+            qpos[qpos_addr] = clipped_value
+            clipped_joints.append((joint_name, value, clipped_value))
+    return clipped_joints
 
 
 def load_motion_frames(bvh_path: pathlib.Path, motion_format: str):
@@ -304,6 +338,12 @@ def main() -> int:
         default=0.0,
         help="Add an outward shoulder-roll bias in radians after IK. For G1, positive values move both arms away from the body.",
     )
+    parser.add_argument(
+        "--disable-joint-limit-clamp",
+        action="store_true",
+        default=False,
+        help="Disable final clamping to limited MuJoCo/URDF joint ranges before publishing.",
+    )
 
     args = parser.parse_args()
 
@@ -343,6 +383,7 @@ def main() -> int:
 
     joint_names = build_joint_names(retargeter.model)
     joint_qpos_addresses = build_joint_qpos_addresses(retargeter.model)
+    limited_joint_ranges = build_limited_joint_ranges(retargeter.model)
     if len(joint_names) != retargeter.model.nq - 7:
         raise ValueError(
             f"Joint name count ({len(joint_names)}) does not match robot DoF count ({retargeter.model.nq - 7})."
@@ -375,6 +416,7 @@ def main() -> int:
     frame_idx = 0
     total_frames = 0
     fps_counter = 0
+    limit_clip_counter = 0
     fps_window_start = time.monotonic()
     next_tick = time.monotonic()
 
@@ -383,6 +425,18 @@ def main() -> int:
             human_frame = human_frames[frame_idx]
             qpos = retargeter.retarget(human_frame)
             apply_arm_out_bias(qpos, joint_qpos_addresses, args.arm_out_bias)
+            if not args.disable_joint_limit_clamp:
+                clipped_joints = clamp_qpos_to_joint_limits(qpos, limited_joint_ranges)
+                if clipped_joints:
+                    limit_clip_counter += 1
+                    if limit_clip_counter == 1 or limit_clip_counter % 100 == 0:
+                        joint_summary = ", ".join(
+                            f"{name}: {before:.3f}->{after:.3f}"
+                            for name, before, after in clipped_joints[:4]
+                        )
+                        if len(clipped_joints) > 4:
+                            joint_summary += f", +{len(clipped_joints) - 4} more"
+                        print(f"Joint limit clamp at frame {frame_idx}: {joint_summary}")
             ros_bridge.publish(qpos)
 
             if viewer is not None:
