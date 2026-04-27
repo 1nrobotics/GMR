@@ -111,17 +111,17 @@ def build_limited_joint_ranges(model) -> dict[str, tuple[int, float, float]]:
     return limited_joint_ranges
 
 
-def apply_arm_out_bias(qpos: np.ndarray, joint_qpos_addresses: dict[str, int], bias: float) -> None:
-    if bias == 0.0:
+def clamp_arm_out_angle(qpos: np.ndarray, joint_qpos_addresses: dict[str, int], min_out_angle: float) -> None:
+    if min_out_angle == 0.0:
         return
 
     left_addr = joint_qpos_addresses.get("left_shoulder_roll_joint")
     right_addr = joint_qpos_addresses.get("right_shoulder_roll_joint")
 
     if left_addr is not None:
-        qpos[left_addr] += bias
+        qpos[left_addr] = max(qpos[left_addr], min_out_angle)
     if right_addr is not None:
-        qpos[right_addr] -= bias
+        qpos[right_addr] = min(qpos[right_addr], -min_out_angle)
 
 
 def clamp_qpos_to_joint_limits(
@@ -333,10 +333,10 @@ def main() -> int:
     parser.add_argument("--use-velocity-limit", action="store_true", default=False)
     parser.add_argument("--use-collision-avoidance", action="store_true", default=False)
     parser.add_argument(
-        "--arm-out-bias",
+        "--arm-out-clamp",
         type=float,
         default=0.0,
-        help="Add an outward shoulder-roll bias in radians after IK. For G1, positive values move both arms away from the body.",
+        help="Clamp the minimum outward shoulder-roll angle in radians after IK. For G1, left is clamped to at least this value and right to at most the negative value.",
     )
     parser.add_argument(
         "--disable-joint-limit-clamp",
@@ -346,6 +346,8 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+    if args.arm_out_clamp < 0.0:
+        parser.error("--arm-out-clamp must be non-negative.")
 
     # Validate that the chosen format+robot combination has an IK config
     from general_motion_retargeting.params import IK_CONFIG_DICT
@@ -424,7 +426,7 @@ def main() -> int:
         while g_running and ros_bridge.ok():
             human_frame = human_frames[frame_idx]
             qpos = retargeter.retarget(human_frame)
-            apply_arm_out_bias(qpos, joint_qpos_addresses, args.arm_out_bias)
+            clamp_arm_out_angle(qpos, joint_qpos_addresses, args.arm_out_clamp)
             if not args.disable_joint_limit_clamp:
                 clipped_joints = clamp_qpos_to_joint_limits(qpos, limited_joint_ranges)
                 if clipped_joints:

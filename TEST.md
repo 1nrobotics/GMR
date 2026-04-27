@@ -125,7 +125,7 @@ Expected result:
 
 ### Arm Clearance Checks
 
-If the hands pass through the torso or legs, first try the lightweight shoulder-roll bias:
+If the hands pass through the torso or legs, first try the lightweight shoulder-roll clamp:
 
 ```bash
 python scripts/bvh_stream_to_ros.py \
@@ -136,10 +136,10 @@ python scripts/bvh_stream_to_ros.py \
   --loop \
   --visualize \
   --follow-camera \
-  --arm-out-bias 0.15
+  --arm-out-clamp 0.15
 ```
 
-Use `0.10` to `0.20` radians as the usual test range. Positive values move both G1 arms outward.
+Use `0.10` to `0.20` radians as the usual test range. For G1, `0.15` clamps the left shoulder roll to at least `+0.15` radians and the right shoulder roll to at most `-0.15` radians.
 
 For constraint-based collision avoidance, run:
 

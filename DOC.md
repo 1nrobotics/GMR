@@ -212,11 +212,11 @@ Key flags:
 | `--damping` | `0.5` | IK solver regularisation |
 | `--use-velocity-limit` | off | Add a velocity limit to the IK solve |
 | `--use-collision-avoidance` | off | Enable optional collision avoidance from the IK config |
-| `--arm-out-bias` | `0.0` | Add an outward G1 shoulder-roll bias in radians after IK |
+| `--arm-out-clamp` | `0.0` | Clamp the minimum outward G1 shoulder-roll angle in radians after IK |
 
 ### Arm Clearance Options
 
-If the retargeted G1 hands pass through the torso or legs, start with the simple shoulder bias:
+If the retargeted G1 hands pass through the torso or legs, start with the simple shoulder-roll clamp:
 
 ```bash
 python scripts/bvh_stream_to_ros.py \
@@ -227,9 +227,9 @@ python scripts/bvh_stream_to_ros.py \
   --loop \
   --visualize \
   --follow-camera \
-  --arm-out-bias 0.15
+  --arm-out-clamp 0.15
 ```
 
-`--arm-out-bias` is applied after IK. For G1, positive values add to `left_shoulder_roll_joint` and subtract from `right_shoulder_roll_joint`, pushing both arms slightly away from the body. A practical starting range is `0.10` to `0.20` radians.
+`--arm-out-clamp` is applied after IK. For G1, `0.15` clamps `left_shoulder_roll_joint` to at least `+0.15` radians and `right_shoulder_roll_joint` to at most `-0.15` radians, keeping both arms from moving too far inward. A practical starting range is `0.10` to `0.20` radians.
 
 For a constraint-based approach, pass `--use-collision-avoidance`. This enables the `collision_avoidance` block in `bvh_forsense_to_g1.json`, currently configured for elbow/wrist vs torso and wrist vs same-side hip/knee links. This is more physically aware than a shoulder bias, but it can make the IK solve stiffer and more expensive.
