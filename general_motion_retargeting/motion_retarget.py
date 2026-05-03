@@ -81,6 +81,7 @@ class GeneralMotionRetargeting:
         self.human_scale_table = ik_config["human_scale_table"]
         self.ground = ik_config["ground_height"] * np.array([0, 0, 1])
         self.collision_avoidance_config = ik_config.get("collision_avoidance", {})
+        self.posture_task_config = ik_config.get("posture_task", {})
 
         self.max_iter = 10
 
@@ -195,6 +196,43 @@ class GeneralMotionRetargeting:
                 )
                 self.tasks2.append(task)
                 self.task_errors2[task] = []
+
+        self.setup_posture_task()
+
+    def setup_posture_task(self):
+        posture_config = self.posture_task_config
+        if not posture_config.get("enabled", False):
+            return
+
+        cost = np.zeros(self.model.nv)
+        for joint_name, joint_cost in posture_config.get("cost", {}).items():
+            joint_id = mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_JOINT, joint_name)
+            if joint_id < 0:
+                raise ValueError(f"Unknown posture cost joint: {joint_name!r}")
+            dof_addr = self.model.jnt_dofadr[joint_id]
+            cost[dof_addr] = float(joint_cost)
+
+        target_qpos = self.model.qpos0.copy()
+        for joint_name, joint_value in posture_config.get("target", {}).items():
+            joint_id = mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_JOINT, joint_name)
+            if joint_id < 0:
+                raise ValueError(f"Unknown posture target joint: {joint_name!r}")
+            qpos_addr = self.model.jnt_qposadr[joint_id]
+            target_qpos[qpos_addr] = float(joint_value)
+
+        posture_task = mink.PostureTask(
+            self.model,
+            cost=cost,
+            lm_damping=posture_config.get("lm_damping", 0.0),
+        )
+        posture_task.set_target(target_qpos)
+
+        if posture_config.get("use_in_table1", True):
+            self.tasks1.append(posture_task)
+            self.task_errors1[posture_task] = []
+        if posture_config.get("use_in_table2", True):
+            self.tasks2.append(posture_task)
+            self.task_errors2[posture_task] = []
 
   
     def update_targets(self, human_data, offset_to_ground=False):

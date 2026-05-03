@@ -177,6 +177,224 @@ The two-pass strategy lets the solver first roughly place the skeleton (table1) 
 
 ---
 
+## ForSense → G1 Arm Orientation Offsets
+
+Each entry in `ik_match_table1` and `ik_match_table2` has this layout:
+
+```json
+"robot_body": [
+  "human_body",
+  position_weight,
+  rotation_weight,
+  position_offset,
+  orientation_offset_quat_wxyz
+]
+```
+
+For example:
+
+```json
+"left_shoulder_yaw_link": [
+  "LeftElbow",
+  0,
+  100,
+  [0.0, 0.0, 0.0],
+  [0.621696694, 0.657317508, -0.159838447, 0.394814622]
+]
+```
+
+The last value is a quaternion in **scalar-first** order:
+
+```
+[w, x, y, z]
+```
+
+It is not a robot joint angle. It is a constant frame-conversion rotation from the BVH human segment frame to the MuJoCo G1 body frame.
+
+In `GeneralMotionRetargeting.offset_human_data`, the code applies it as:
+
+```python
+target_quat = human_global_quat * orientation_offset
+```
+
+Because the offset is right-multiplied, it should be interpreted as a correction in the human body's local coordinate frame. This matters: if the BVH arm frame uses a different local axis convention from G1, the IK target can look correct in position but ask the robot shoulder to twist into a bad orientation.
+
+### Why the arm mapping uses elbow/wrist/hand names
+
+For lower_snake_case ForSense BVH files, the alias table maps:
+
+| BVH node | GMR name | G1 target |
+|---|---|---|
+| `left_upper_arm` | `LeftElbow` | `left_shoulder_yaw_link` |
+| `left_lower_arm` | `LeftWrist` | `left_elbow_link` |
+| `left_hand` | `LeftHand` | `left_wrist_yaw_link` |
+| `right_upper_arm` | `RightElbow` | `right_shoulder_yaw_link` |
+| `right_lower_arm` | `RightWrist` | `right_elbow_link` |
+| `right_hand` | `RightHand` | `right_wrist_yaw_link` |
+
+This can look surprising, but it is intentional. The G1 shoulder link should track the human upper-arm segment, not the small `LeftShoulder`/`RightShoulder` clavicle-like BVH node. The G1 elbow link should track the human lower-arm segment, and the G1 wrist link should track the human hand segment.
+
+### How the current ForSense arm offsets were calibrated
+
+The current arm orientation offsets in `bvh_forsense_to_g1.json` were calibrated from:
+
+```
+data/bvh_record_0429.bvh
+frame 0
+```
+
+That frame is a normal standing pose and should correspond to the G1 standing arm pose. The calibration solves:
+
+```text
+orientation_offset = inverse(human_frame0_global_orientation) * g1_stand_body_global_orientation
+```
+
+For each mapped arm segment:
+
+```text
+LeftElbow  -> left_shoulder_yaw_link
+LeftWrist  -> left_elbow_link
+LeftHand   -> left_wrist_yaw_link
+RightElbow -> right_shoulder_yaw_link
+RightWrist -> right_elbow_link
+RightHand  -> right_wrist_yaw_link
+```
+
+The G1 standing arm pose used for calibration is:
+
+```text
+left_shoulder_pitch   =  0.2
+left_shoulder_roll    =  0.2
+left_shoulder_yaw     =  0.0
+left_elbow            =  1.28
+left_wrist_roll       =  0.0
+left_wrist_pitch      =  0.0
+left_wrist_yaw        =  0.0
+
+right_shoulder_pitch  =  0.2
+right_shoulder_roll   = -0.2
+right_shoulder_yaw    =  0.0
+right_elbow           =  1.28
+right_wrist_roll      =  0.0
+right_wrist_pitch     =  0.0
+right_wrist_yaw       =  0.0
+```
+
+The root heading of the BVH frame is preserved during this calculation. This is important because `bvh_record.bvh` and `bvh_record_0429.bvh` start with different world yaw angles. Calibrating the arm offsets against an identity-world G1 pose can make frame 0 look reasonable in isolation but produce wrong shoulder yaw once the root orientation is included in the IK target.
+
+### Frame-0 verification after calibration
+
+With the current `bvh_record_0429.bvh` offsets, frame 0 gives near-standing G1 shoulder yaw:
+
+```text
+left_shoulder_yaw_joint   ≈ 0.49 deg
+right_shoulder_yaw_joint  ≈ 4.46 deg
+```
+
+Before this calibration, frame 0 pushed the right shoulder into a limit:
+
+```text
+left_shoulder_yaw_joint   ≈ -51.92 deg
+right_shoulder_yaw_joint  ≈  80.21 deg  (upper limit)
+```
+
+### Why offsets alone were not enough
+
+After the frame-0 offset calibration, walking looked good, but later arm motions still caused the left arm to fail. Around frames `1800` to `2310` in `bvh_record_0429.bvh`, the left arm repeatedly selected a bad IK branch:
+
+```text
+left_shoulder_roll  -> upper limit
+left_shoulder_yaw   -> lower limit
+left_elbow          -> sometimes a limit
+```
+
+The right arm did not have the same problem. The raw BVH arm positions were reasonably symmetric, but the orientation targets and the G1 joint-limit geometry made the left side easier to pull into the wrong 7-DOF arm branch. This was an IK branch-selection problem, not just a constant offset problem.
+
+---
+
+## Posture Task Regularization
+
+`bvh_forsense_to_g1.json` now includes a `posture_task` block:
+
+```json
+"posture_task": {
+  "enabled": true,
+  "lm_damping": 0.1,
+  "use_in_table1": true,
+  "use_in_table2": true,
+  "target": {
+    "left_shoulder_pitch_joint": 0.2,
+    "left_shoulder_roll_joint": 0.2,
+    "left_shoulder_yaw_joint": 0.0,
+    "left_elbow_joint": 1.28,
+    "...": "..."
+  },
+  "cost": {
+    "left_shoulder_pitch_joint": 5.0,
+    "left_shoulder_roll_joint": 5.0,
+    "left_shoulder_yaw_joint": 5.0,
+    "left_elbow_joint": 5.0,
+    "...": "..."
+  }
+}
+```
+
+This creates a Mink `PostureTask` in `GeneralMotionRetargeting.setup_posture_task`.
+
+A `PostureTask` is a soft IK regularizer. It does not force the robot to stay in the standing pose. Instead, it says:
+
+> If several joint configurations can satisfy the frame targets, prefer the one closer to this natural G1 arm posture.
+
+This is useful for redundant arms. The G1 arm has enough DOFs that the same hand or wrist target can often be reached through multiple shoulder/elbow branches. Without a posture preference, the solver can choose a mathematically valid but visually wrong branch.
+
+The current cost value is:
+
+```text
+5.0 for each left/right shoulder, elbow, and wrist joint
+```
+
+This was chosen because it removed the left-arm limit saturation on the full `bvh_record_0429.bvh` sequence while still allowing visible arm motion.
+
+Full-sequence diagnostic result:
+
+```text
+Before posture task:
+  left arm limit-hit events: 1067
+  right arm limit-hit events: 0
+
+After posture task:
+  left arm limit-hit events: 0
+  right arm limit-hit events: 0
+```
+
+At the previously bad frame `1870`, the left arm moved from a saturated branch:
+
+```text
+left_shoulder_pitch  ≈ -143.4 deg
+left_shoulder_roll   ≈  129.0 deg  (upper limit)
+left_shoulder_yaw    ≈  -80.2 deg  (lower limit)
+left_elbow           ≈   97.4 deg  (upper limit)
+```
+
+to a normal branch:
+
+```text
+left_shoulder_pitch  ≈   4.8 deg
+left_shoulder_roll   ≈  -4.4 deg
+left_shoulder_yaw    ≈  15.9 deg
+left_elbow           ≈  67.1 deg
+```
+
+If the arm motion becomes too stiff, reduce the posture `cost` values. If the solver again chooses bad shoulder branches, increase them slightly. Good test values are:
+
+```text
+2.0  weak bias
+5.0  current tested value
+10.0 stronger bias, may reduce expressiveness
+```
+
+---
+
 ## Real-Time Streaming: `scripts/bvh_stream_to_ros.py`
 
 Loads a ForSense BVH, retargets each frame to the robot, and publishes three ROS topics at the recorded frame rate:
