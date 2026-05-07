@@ -173,7 +173,7 @@ This repo is licensed under the [MIT License](LICENSE).
 | 17 | Fourier GR3 `fourier_gr3`  | Head (2) + Arm (2\*7) + Waist (3) + Leg (2\*6) = 31 | ✅ | TBD | TBD | TBD |
 | More robots coming soon ! |
 | 18 | AgiBot A2 `agibot_a2` | TBD | TBD | TBD | TBD | TBD |
-| 19 | OpenLoong `openloong` | TBD | TBD | TBD | TBD | TBD |
+| 19 | OpenLoong `openloong` | Head (2) + Arm (2\*7) + Waist (3) + Leg (2\*6) = 31 | ✅ | TBD | TBD | TBD |
 
 
 
