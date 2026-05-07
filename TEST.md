@@ -117,6 +117,21 @@ python scripts/bvh_stream_to_ros.py \
   --follow-camera
 ```
 
+For a ForSense BVH recording on AgiBot A2:
+
+```bash
+python scripts/bvh_stream_to_ros.py \
+  --bvh_file data/bvh_record.bvh \
+  --format forsense \
+  --robot agibot_a2 \
+  --ros-version 1 \
+  --loop \
+  --visualize \
+  --follow-camera
+```
+
+The initial AgiBot ForSense config is position-driven for limbs and uses a soft arm posture task from the AgiBot home pose. Calibrate AgiBot-specific orientation offsets before enabling strong limb orientation tracking.
+
 Expected result:
 
 - Leg and torso motion should follow the BVH.
