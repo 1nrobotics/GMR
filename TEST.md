@@ -1,5 +1,19 @@
 # Test Notes
 
+## Run `bvh_stream_to_ros.py`
+
+```bash
+python scripts/bvh_stream_to_ros.py \
+  --bvh_file data/bvh_record_0506.bvh \
+  --format forsense \
+  --robot unitree_g1 \
+  --ros-version 1 \
+  --loop \
+  --visualize \
+  --follow-camera \
+  --arm-out-clamp 0.2
+```
+
 ## Test `bvh_to_robot.py`
 
 Use this command to retarget a LAFAN BVH file offline, visualize it in MuJoCo, and save the retargeted motion to a `.pkl` file:
