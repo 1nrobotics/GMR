@@ -66,6 +66,7 @@ IK_CONFIG_DICT = {
     },
     "bvh_forsense":{
         "unitree_g1": IK_CONFIG_ROOT / "bvh_forsense_to_g1.json",
+        "agibot_a2": IK_CONFIG_ROOT / "bvh_forsense_to_agibot_a2.json",
     },
     "fbx":{
         "unitree_g1": IK_CONFIG_ROOT / "fbx_to_g1.json",

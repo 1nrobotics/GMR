@@ -291,6 +291,7 @@ def main() -> int:
             "fourier_n1",
             "engineai_pm01",
             "pal_talos",
+            "agibot_a2",
         ],
         default="unitree_g1",
     )
