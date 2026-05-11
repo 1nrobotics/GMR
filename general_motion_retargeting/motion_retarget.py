@@ -19,6 +19,7 @@ class GeneralMotionRetargeting:
         damping: float=5e-1, # change from 1e-1 to 1e-2.
         verbose: bool=True,
         use_velocity_limit: bool=False,
+        use_collision_avoidance: bool=False,
     ) -> None:
 
         # load the robot model
@@ -79,6 +80,8 @@ class GeneralMotionRetargeting:
         self.use_ik_match_table2 = ik_config["use_ik_match_table2"]
         self.human_scale_table = ik_config["human_scale_table"]
         self.ground = ik_config["ground_height"] * np.array([0, 0, 1])
+        self.collision_avoidance_config = ik_config.get("collision_avoidance", {})
+        self.posture_task_config = ik_config.get("posture_task", {})
 
         self.max_iter = 10
 
@@ -99,10 +102,58 @@ class GeneralMotionRetargeting:
         if use_velocity_limit:
             VELOCITY_LIMITS = {k: 3*np.pi for k in self.robot_motor_names.keys()}
             self.ik_limits.append(mink.VelocityLimit(self.model, VELOCITY_LIMITS)) 
+        if use_collision_avoidance and self.collision_avoidance_config.get("enabled", False):
+            self.ik_limits.append(self.make_collision_avoidance_limit())
             
         self.setup_retarget_configuration()
         
         self.ground_offset = 0.0
+
+    def make_collision_avoidance_limit(self):
+        collision_config = self.collision_avoidance_config
+        geom_pairs = []
+        for group_a, group_b in collision_config.get("self_collision_pairs", []):
+            geom_pairs.append(
+                (
+                    self.resolve_collision_group(group_a),
+                    self.resolve_collision_group(group_b),
+                )
+            )
+
+        return mink.CollisionAvoidanceLimit(
+            self.model,
+            geom_pairs=geom_pairs,
+            gain=collision_config.get("gain", 0.85),
+            minimum_distance_from_collisions=collision_config.get("min_distance", 0.02),
+            collision_detection_distance=collision_config.get("detection_distance", 0.1),
+        )
+
+    def resolve_collision_group(self, group):
+        geom_ids = []
+        for name_or_id in group:
+            if isinstance(name_or_id, int):
+                geom_ids.append(name_or_id)
+                continue
+
+            geom_id = mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_GEOM, name_or_id)
+            if geom_id >= 0:
+                geom_ids.append(geom_id)
+                continue
+
+            body_id = mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_BODY, name_or_id)
+            if body_id < 0:
+                raise ValueError(f"Unknown collision geom/body name: {name_or_id!r}")
+
+            body_geom_ids = [
+                geom_id
+                for geom_id in range(self.model.ngeom)
+                if self.model.geom_bodyid[geom_id] == body_id
+            ]
+            if not body_geom_ids:
+                raise ValueError(f"Collision body has no geoms: {name_or_id!r}")
+            geom_ids.extend(body_geom_ids)
+
+        return geom_ids
 
     def setup_retarget_configuration(self):
         self.configuration = mink.Configuration(self.model)
@@ -145,6 +196,43 @@ class GeneralMotionRetargeting:
                 )
                 self.tasks2.append(task)
                 self.task_errors2[task] = []
+
+        self.setup_posture_task()
+
+    def setup_posture_task(self):
+        posture_config = self.posture_task_config
+        if not posture_config.get("enabled", False):
+            return
+
+        cost = np.zeros(self.model.nv)
+        for joint_name, joint_cost in posture_config.get("cost", {}).items():
+            joint_id = mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_JOINT, joint_name)
+            if joint_id < 0:
+                raise ValueError(f"Unknown posture cost joint: {joint_name!r}")
+            dof_addr = self.model.jnt_dofadr[joint_id]
+            cost[dof_addr] = float(joint_cost)
+
+        target_qpos = self.model.qpos0.copy()
+        for joint_name, joint_value in posture_config.get("target", {}).items():
+            joint_id = mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_JOINT, joint_name)
+            if joint_id < 0:
+                raise ValueError(f"Unknown posture target joint: {joint_name!r}")
+            qpos_addr = self.model.jnt_qposadr[joint_id]
+            target_qpos[qpos_addr] = float(joint_value)
+
+        posture_task = mink.PostureTask(
+            self.model,
+            cost=cost,
+            lm_damping=posture_config.get("lm_damping", 0.0),
+        )
+        posture_task.set_target(target_qpos)
+
+        if posture_config.get("use_in_table1", True):
+            self.tasks1.append(posture_task)
+            self.task_errors1[posture_task] = []
+        if posture_config.get("use_in_table2", True):
+            self.tasks2.append(posture_task)
+            self.task_errors2[posture_task] = []
 
   
     def update_targets(self, human_data, offset_to_ground=False):

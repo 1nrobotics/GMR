@@ -160,10 +160,10 @@
                 0
             ],
             [
-                0.5,
-                0.5,
-                -0.5,
-                -0.5
+                -0.621696694,
+                -0.657317508,
+                0.159838447,
+                -0.394814622
             ]
         ],
         "left_lower_arm_pitch_link": [
@@ -176,10 +176,10 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.568327025,
+                0.749923469,
+                -0.173993071,
+                0.290423131
             ]
         ],
         "left_end_effector_link": [
@@ -192,10 +192,10 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.592959474,
+                0.769123252,
+                0.233808823,
+                -0.046711023
             ]
         ],
         "right_upper_arm_roll_link": [
@@ -208,10 +208,10 @@
                 0
             ],
             [
-                0.5,
-                0.5,
-                -0.5,
-                -0.5
+                -0.618694045,
+                0.687854619,
+                0.137792104,
+                0.35367646
             ]
         ],
         "right_lower_arm_pitch_link": [
@@ -224,10 +224,10 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.607605114,
+                -0.759915937,
+                -0.148942348,
+                -0.176521871
             ]
         ],
         "right_end_effector_link": [
@@ -240,10 +240,10 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.578250389,
+                -0.806777168,
+                0.103355945,
+                0.063676033
             ]
         ]
     },
@@ -386,10 +386,10 @@
                 0
             ],
             [
-                0.5,
-                0.5,
-                -0.5,
-                -0.5
+                -0.621696694,
+                -0.657317508,
+                0.159838447,
+                -0.394814622
             ]
         ],
         "left_lower_arm_pitch_link": [
@@ -402,10 +402,10 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.568327025,
+                0.749923469,
+                -0.173993071,
+                0.290423131
             ]
         ],
         "left_end_effector_link": [
@@ -418,10 +418,10 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.592959474,
+                0.769123252,
+                0.233808823,
+                -0.046711023
             ]
         ],
         "right_upper_arm_roll_link": [
@@ -434,10 +434,10 @@
                 0
             ],
             [
-                0.5,
-                0.5,
-                -0.5,
-                -0.5
+                -0.618694045,
+                0.687854619,
+                0.137792104,
+                0.35367646
             ]
         ],
         "right_lower_arm_pitch_link": [
@@ -450,10 +450,10 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.607605114,
+                -0.759915937,
+                -0.148942348,
+                -0.176521871
             ]
         ],
         "right_end_effector_link": [
@@ -466,11 +466,41 @@
                 0
             ],
             [
-                -0.5,
-                -0.5,
-                0.5,
-                0.5
+                0.578250389,
+                -0.806777168,
+                0.103355945,
+                0.063676033
             ]
         ]
+    },
+    "posture_task": {
+        "enabled": true,
+        "lm_damping": 0.1,
+        "use_in_table1": true,
+        "use_in_table2": true,
+        "target": {
+            "left_shoulder_pitch_joint": 0.2,
+            "left_shoulder_roll_joint": 0.2,
+            "left_shoulder_yaw_joint": 0.0,
+            "left_elbow_pitch_joint": 1.28,
+            "left_wrist_yaw_joint": 0.0,
+            "right_shoulder_pitch_joint": 0.2,
+            "right_shoulder_roll_joint": -0.2,
+            "right_shoulder_yaw_joint": 0.0,
+            "right_elbow_pitch_joint": 1.28,
+            "right_wrist_yaw_joint": 0.0
+        },
+        "cost": {
+            "left_shoulder_pitch_joint": 5.0,
+            "left_shoulder_roll_joint": 5.0,
+            "left_shoulder_yaw_joint": 5.0,
+            "left_elbow_pitch_joint": 5.0,
+            "left_wrist_yaw_joint": 5.0,
+            "right_shoulder_pitch_joint": 5.0,
+            "right_shoulder_roll_joint": 5.0,
+            "right_shoulder_yaw_joint": 5.0,
+            "right_elbow_pitch_joint": 5.0,
+            "right_wrist_yaw_joint": 5.0
+        }
     }
 }

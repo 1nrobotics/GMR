@@ -37,7 +37,7 @@ def load_bvh_file(bvh_file, format="lafan1"):
             result["RightFootMod"] = [result["RightFoot"][0], result["RightToeBase"][1]]
         else:
             raise ValueError(f"Invalid format: {format}")
-            
+
         frames.append(result)
     
     # human_height = result["Head"][0][2] - min(result["LeftFootMod"][0][2], result["RightFootMod"][0][2])
@@ -45,5 +45,3 @@ def load_bvh_file(bvh_file, format="lafan1"):
     human_height = 1.75  # cm to m
 
     return frames, human_height
-
-
