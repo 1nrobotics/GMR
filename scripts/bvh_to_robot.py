@@ -3,6 +3,7 @@ import pathlib
 import time
 from general_motion_retargeting import GeneralMotionRetargeting as GMR
 from general_motion_retargeting import RobotMotionViewer
+from general_motion_retargeting.utils.forsense import load_bvh_file as load_forsense_bvh_file
 from general_motion_retargeting.utils.lafan1 import load_bvh_file
 from rich import print
 from tqdm import tqdm
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     
     parser.add_argument(
         "--format",
-        choices=["lafan1", "nokov"],
+        choices=["lafan1", "nokov", "forsense"],
         default="lafan1",
     )
     
@@ -80,13 +81,20 @@ if __name__ == "__main__":
         qpos_list = []
 
     
-    # Load SMPLX trajectory
-    lafan1_data_frames, actual_human_height = load_bvh_file(args.bvh_file, format=args.format)
+    # Load BVH trajectory
+    if args.format == "forsense":
+        lafan1_data_frames, actual_human_height, frame_time = load_forsense_bvh_file(
+            args.bvh_file,
+            format=args.format,
+        )
+        args.motion_fps = int(1 / frame_time)
+    else:
+        lafan1_data_frames, actual_human_height = load_bvh_file(args.bvh_file, format=args.format)
     
     
     # Initialize the retargeting system
     retargeter = GMR(
-        src_human=f"bvh_{args.format}",
+        src_human="bvh_forsense" if args.format == "forsense" else f"bvh_{args.format}",
         tgt_robot=args.robot,
         actual_human_height=actual_human_height,
     )
