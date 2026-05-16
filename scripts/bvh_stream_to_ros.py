@@ -245,9 +245,16 @@ def validate_retargeting_setup(retargeter: GMR, first_frame: dict) -> None:
 
     posture_config = retargeter.posture_task_config
     if posture_config.get("enabled", False):
-        posture_joint_names = set(posture_config.get("target", {})) | set(
-            posture_config.get("cost", {})
-        )
+        posture_target_names = set(posture_config.get("target", {}))
+        posture_cost_names = set(posture_config.get("cost", {}))
+        if posture_target_names != posture_cost_names:
+            raise ValueError(
+                "IK posture_task target/cost joint sets must match. "
+                f"Only in target: {sorted(posture_target_names - posture_cost_names)}; "
+                f"only in cost: {sorted(posture_cost_names - posture_target_names)}"
+            )
+
+        posture_joint_names = posture_target_names | posture_cost_names
         missing_posture_joints = sorted(
             joint_name
             for joint_name in posture_joint_names
