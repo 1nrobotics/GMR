@@ -49,6 +49,23 @@ FORSENSE_MIXAMO_ALIASES = {
     "RightForeArm": "RightWrist",
 }
 
+REQUIRED_CANONICAL_BODIES = {
+    "Hips",
+    "Chest4",
+    "LeftElbow",
+    "RightElbow",
+    "LeftWrist",
+    "RightWrist",
+    "LeftHand",
+    "RightHand",
+    "LeftHip",
+    "RightHip",
+    "LeftKnee",
+    "RightKnee",
+    "LeftFoot",
+    "RightFoot",
+}
+
 
 def parse_forsense_bvh(
     bvh_file,
@@ -120,6 +137,14 @@ def load_bvh_file(bvh_file, format="forsense"):
         for src_name, target_name in aliases.items():
             if src_name in result:
                 result[target_name] = result[src_name]
+
+        missing_bodies = sorted(REQUIRED_CANONICAL_BODIES - set(result))
+        if missing_bodies:
+            available = ", ".join(sorted(result))
+            raise ValueError(
+                "ForSense BVH is missing canonical bodies required by GMR IK configs: "
+                f"{missing_bodies}. Available bodies: {available}"
+            )
 
         result["LeftFootMod"] = (result["LeftFoot"][0], result["LeftFoot"][1])
         result["RightFootMod"] = (result["RightFoot"][0], result["RightFoot"][1])

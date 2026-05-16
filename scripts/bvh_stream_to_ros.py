@@ -149,6 +149,116 @@ def load_motion_frames(bvh_path: pathlib.Path, motion_format: str):
     raise ValueError(f"Unsupported motion format: {motion_format}")
 
 
+def _active_human_body_names(table: dict[str, list]) -> set[str]:
+    names = set()
+    for robot_body, entry in table.items():
+        if len(entry) != 5:
+            raise ValueError(
+                f"Malformed IK config entry for robot body {robot_body!r}: "
+                "expected [human_body, pos_weight, rot_weight, pos_offset, rot_offset]."
+            )
+        human_body, pos_weight, rot_weight, _pos_offset, _rot_offset = entry
+        if pos_weight != 0 or rot_weight != 0:
+            names.add(human_body)
+    return names
+
+
+def _active_robot_body_names(table: dict[str, list]) -> set[str]:
+    return {
+        robot_body
+        for robot_body, entry in table.items()
+        if len(entry) == 5 and (entry[1] != 0 or entry[2] != 0)
+    }
+
+
+def validate_retargeting_setup(retargeter: GMR, first_frame: dict) -> None:
+    import mujoco as mj
+
+    table1_human_names = (
+        _active_human_body_names(retargeter.ik_match_table1)
+        if retargeter.use_ik_match_table1
+        else set()
+    )
+    table2_human_names = (
+        _active_human_body_names(retargeter.ik_match_table2)
+        if retargeter.use_ik_match_table2
+        else set()
+    )
+    scaled_human_names = set(retargeter.human_scale_table)
+    required_human_names = (
+        {retargeter.human_root_name}
+        | scaled_human_names
+        | table1_human_names
+        | table2_human_names
+    )
+
+    missing_human_names = sorted(required_human_names - set(first_frame))
+    if missing_human_names:
+        available = ", ".join(sorted(first_frame))
+        raise ValueError(
+            "IK config references human bodies that are not present in the loaded BVH frame: "
+            f"{missing_human_names}. Available bodies: {available}"
+        )
+
+    # update_targets() applies table1 offsets to every scaled human body, so an
+    # active table1 entry must exist for each body in human_scale_table.
+    missing_table1_entries = sorted(scaled_human_names - table1_human_names)
+    if missing_table1_entries:
+        raise ValueError(
+            "IK config human_scale_table contains bodies without active ik_match_table1 entries: "
+            f"{missing_table1_entries}. Add matching table1 entries or remove the bodies from "
+            "human_scale_table."
+        )
+
+    missing_table2_scales = sorted(table2_human_names - scaled_human_names)
+    if missing_table2_scales:
+        raise ValueError(
+            "IK config ik_match_table2 uses human bodies that are not in human_scale_table: "
+            f"{missing_table2_scales}. Add them to human_scale_table so scaled targets exist."
+        )
+
+    malformed_frame_bodies = []
+    for body_name in required_human_names:
+        pos, quat = first_frame[body_name]
+        if np.asarray(pos).shape != (3,) or np.asarray(quat).shape != (4,):
+            malformed_frame_bodies.append(body_name)
+    if malformed_frame_bodies:
+        raise ValueError(
+            "Loaded BVH frame has malformed position/quaternion entries for bodies: "
+            f"{sorted(malformed_frame_bodies)}"
+        )
+
+    robot_body_names = set()
+    if retargeter.use_ik_match_table1:
+        robot_body_names |= _active_robot_body_names(retargeter.ik_match_table1)
+    if retargeter.use_ik_match_table2:
+        robot_body_names |= _active_robot_body_names(retargeter.ik_match_table2)
+    robot_body_names.add(retargeter.robot_root_name)
+
+    missing_robot_bodies = sorted(
+        body_name
+        for body_name in robot_body_names
+        if mj.mj_name2id(retargeter.model, mj.mjtObj.mjOBJ_BODY, body_name) < 0
+    )
+    if missing_robot_bodies:
+        raise ValueError(f"IK config references unknown robot bodies: {missing_robot_bodies}")
+
+    posture_config = retargeter.posture_task_config
+    if posture_config.get("enabled", False):
+        posture_joint_names = set(posture_config.get("target", {})) | set(
+            posture_config.get("cost", {})
+        )
+        missing_posture_joints = sorted(
+            joint_name
+            for joint_name in posture_joint_names
+            if mj.mj_name2id(retargeter.model, mj.mjtObj.mjOBJ_JOINT, joint_name) < 0
+        )
+        if missing_posture_joints:
+            raise ValueError(
+                f"IK posture_task references unknown robot joints: {missing_posture_joints}"
+            )
+
+
 class RosBridge:
     def __init__(
         self,
@@ -365,11 +475,20 @@ def main() -> int:
         raise FileNotFoundError(f"BVH file not found: {bvh_path}")
 
     frame_time = read_bvh_frame_time(bvh_path)
-    motion_fps = args.motion_fps if args.motion_fps is not None else (1.0 / frame_time if frame_time else 30.0)
+    if args.motion_fps is not None:
+        if args.motion_fps <= 0:
+            parser.error("--motion-fps must be positive.")
+        motion_fps = args.motion_fps
+    elif frame_time is not None and frame_time > 0:
+        motion_fps = 1.0 / frame_time
+    else:
+        motion_fps = 30.0
     frame_period = 1.0 / motion_fps
 
     print(f"Loading BVH: {bvh_path}")
     human_frames, actual_human_height = load_motion_frames(bvh_path, args.format)
+    if not human_frames:
+        raise ValueError(f"No motion frames loaded from BVH file: {bvh_path}")
     if args.human_height is not None:
         actual_human_height = args.human_height
 
@@ -383,6 +502,7 @@ def main() -> int:
         use_velocity_limit=args.use_velocity_limit,
         use_collision_avoidance=args.use_collision_avoidance,
     )
+    validate_retargeting_setup(retargeter, human_frames[0])
 
     joint_names = build_joint_names(retargeter.model)
     joint_qpos_addresses = build_joint_qpos_addresses(retargeter.model)
